@@ -1,0 +1,11 @@
+{
+  "name": "@my-app/contract",
+  "version": "0.0.1",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "lint": "forge fmt --check",
+    "deploy:local": "forge script script/Deploy.s.sol --rpc-url localhost --broadcast",
+    "export-abis": "node scripts/exportAbis.js"
+  }
+}

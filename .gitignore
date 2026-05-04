@@ -1,0 +1,22 @@
+# deps
+/node_modules
+.pnpm-store/
+
+# turbo
+.turbo/
+
+# build outputs
+dist/
+.next/
+out/
+
+# foundry
+artifacts/
+cache/
+broadcast/
+
+# env
+.env
+.env.*
+!.env.example
+readme

@@ -1,0 +1,26 @@
+{
+  "name": "@my-app/indexer",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+   "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.33.0",
+  "dependencies": {
+    "@my-app/shared": "workspace:*",
+    "dotenv": "^17.4.2",
+    "viem": "^2.48.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}
