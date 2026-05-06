@@ -139,3 +139,12 @@
       linear-gradient(90deg, var(--nav-border) 1px, transparent 1px);
     background-size: 60px 60px;
   }
+
+  /* RainbowKit modal responsive fix */
+[data-rk] * {
+  box-sizing: border-box;
+}
+
+[data-rk] > div {
+  padding: 12px !important;
+}

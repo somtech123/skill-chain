@@ -1,8 +1,13 @@
 "use client";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-export default function NavigationBar() {
+type Props = {
+  onLaunch: () => void;
+};
+
+export default function NavigationBar({ onLaunch }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -10,9 +15,11 @@ export default function NavigationBar() {
     const handleResize = () => {
       if (window.innerWidth >= 768) setMenuOpen(false);
     };
+
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("resize", handleResize);
     window.addEventListener("scroll", handleScroll);
+
     return () => {
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("scroll", handleScroll);
@@ -27,6 +34,7 @@ export default function NavigationBar() {
   ];
 
   return (
+    // <>
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled ? "bg-nav border-b border-base shadow-sm" : "bg-tranparent"
@@ -52,12 +60,16 @@ export default function NavigationBar() {
           ))}
         </div>
 
-        <Link href="/dashboard" className="hidden md:block">
-          <button className="btn-primary px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-            Connect Wallet
+        <div className="hidden md:block">
+          <button
+            className="btn-primary px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            onClick={onLaunch}
+          >
+            Launch App
           </button>
-        </Link>
+        </div>
 
+        {/* Hamburger */}
         <button
           className="md:hidden flex flex-col justify-center items-center w-8 h-8 gap-1.5"
           aria-label="Toggle menu"
@@ -94,11 +106,16 @@ export default function NavigationBar() {
               {label}
             </Link>
           ))}
-          <Link href="/dashboard" onClick={() => setMenuOpen(false)}>
-            <button className="btn-primary w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-              Connect Wallet
-            </button>
-          </Link>
+
+          <button
+            className="btn-primary w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            onClick={() => {
+              setMenuOpen(false);
+              onLaunch();
+            }}
+          >
+            Launch App
+          </button>
         </div>
       </div>
     </nav>
