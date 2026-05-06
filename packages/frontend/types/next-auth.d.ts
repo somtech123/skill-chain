@@ -6,7 +6,14 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
+      accessToken?: string;
       githubConnected: boolean;
-    };
+    } & DefaultSession["user"];
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    accessToken?: string;
   }
 }

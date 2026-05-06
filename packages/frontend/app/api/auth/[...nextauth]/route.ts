@@ -1,11 +1,16 @@
-import NextAuth from "next-auth";
+// app/api/auth/[...nextauth]/route.ts
+import NextAuth, { NextAuthOptions } from "next-auth";
 import GithubProvider from "next-auth/providers/github";
 
-const handler = NextAuth({
+export const authOptions: NextAuthOptions = {
+  // ← plain config object, NOT NextAuth(...)
   providers: [
     GithubProvider({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      authorization: {
+        params: { scope: "read:user repo" },
+      },
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
@@ -16,13 +21,13 @@ const handler = NextAuth({
       }
       return token;
     },
-
     async session({ session, token }) {
-      // attach github username to session so we can check it anywhere
       session.user.githubConnected = !!token.sub;
+      session.user.accessToken = token.accessToken; // ← forward token to session
       return session;
     },
   },
-});
+};
 
+const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };

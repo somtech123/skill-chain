@@ -1,9 +1,13 @@
 import Link from "next/link";
 import Button from "./ui/Buttons";
 
+type Props = {
+  onLaunch: () => void;
+};
+
 import CodeHexagon from "./ui/HeroBadge";
 
-export default function HeroSection() {
+export default function HeroSection({ onLaunch }: Props) {
   return (
     <section className="relative min-h-screen flex items-center pt-5 overflow-hidden">
       {/* Background grid */}
@@ -37,11 +41,11 @@ export default function HeroSection() {
           </p>
 
           <div className="flex flex-wrap gap-4">
-            <Link href="/dashboard">
-              <Button variant="primary" size="lg">
-                Connect Wallet
-              </Button>
-            </Link>
+            {/* <Link href="/dashboard"> */}
+            <Button variant="primary" size="lg" onClick={onLaunch}>
+              Connect Wallet
+            </Button>
+            {/* </Link> */}
 
             <Link href="#features">
               <Button variant="secondary" size="lg">
