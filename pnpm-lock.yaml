@@ -19,6 +19,9 @@ importers:
 
   packages/frontend:
     dependencies:
+      '@my-app/indexer':
+        specifier: workspace:*
+        version: link:../indexer
       '@my-app/shared':
         specifier: workspace:*
         version: link:../shared

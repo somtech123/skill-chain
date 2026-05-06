@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@my-app/shared": "workspace:*",
+    "@my-app/indexer": "workspace:*",
     "@rainbow-me/rainbowkit": "^2.2.10",
     "@tanstack/react-query": "^5.100.9",
     "clsx": "^2.1.1",
