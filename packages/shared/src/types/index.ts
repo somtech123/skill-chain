@@ -31,3 +31,13 @@ export interface DeveloperStats {
   topLanguages: { language: string; count: number }[];
   score: number;
 }
+
+export interface MintedNFT {
+  id: number;
+  txHash: string;
+  score: number;
+  repos: number;
+  commits: number;
+  contractAddress: string;
+  mintedAt: string;
+}

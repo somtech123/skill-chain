@@ -5,6 +5,7 @@ import { DeveloperStats } from "@my-app/shared";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
+
   if (!session?.user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
