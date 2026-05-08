@@ -6,17 +6,17 @@ const outPutDir = path.join(__dirname, "../../shared/src/abis");
 
 fs.mkdirSync(outPutDir, { recursive: true });
 
-//export SkillChainContract ABI
+//export ProofVerifier ABI
 const artifact = JSON.parse(
   fs.readFileSync(
-    `${artifactDir}/SkillChainContract.sol/SkillChainContract.json`,
+    `${artifactDir}/ProofVerifier.sol/ProofVerifier.json`,
     "utf-8",
   ),
 );
 
 fs.writeFileSync(
-  `${outPutDir}/SkillChainContract.ts`,
-  `export const SkillChainContractABI = ${JSON.stringify(artifact.abi, null, 2)} as const;`,
+  `${outPutDir}/ProofVerifier.ts`,
+  `export const ProofVerifier = ${JSON.stringify(artifact.abi, null, 2)} as const;`,
 );
 
 console.log("ABIs exported to shared");
