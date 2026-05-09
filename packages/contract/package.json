@@ -5,7 +5,11 @@
     "build": "forge build && node script/export-abi.js",
     "test": "forge test -vvv",
     "lint": "forge fmt --check",
-    "deploy:local": "forge script script/Deploy.s.sol --rpc-url localhost --broadcast",
-    "export-abis": "node scripts/exportAbis.js"
+    "deploy:local": "forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast && node script/write-address.js 31337",
+    "deploy:sepolia": "forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --verify && node script/write-address.js 11155111",
+    "deploy:base": "forge script script/Deploy.s.sol --rpc-url $BASE_RPC_URL --broadcast --verify && node script/write-address.js 8453",
+    "deploy:arbitrum": "forge script script/Deploy.s.sol --rpc-url $ARBITRUM_RPC_URL --broadcast --verify && node script/write-address.js 42161"
+  
+
   }
 }

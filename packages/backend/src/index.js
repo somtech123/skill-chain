@@ -25,7 +25,7 @@ app.post("/api/sign-proof", async (req, res) => {
       return res.status(400).json({ error: "Invalid address" });
     }
 
-    // fetch achievement from supabase
+    // fetch achievement from supabase if exist
     const { data: achievement, error } = await supabase
       .from("achievements")
       .select("*")
@@ -34,6 +34,18 @@ app.post("/api/sign-proof", async (req, res) => {
 
     if (error || !achievement) {
       return res.status(404).json({ error: "Achievement not found" });
+    }
+
+    // check already claimed
+    const { data: existing } = await supabase
+      .from("user_achievements")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("achievement_id", achievementId)
+      .single();
+
+    if (existing) {
+      return res.status(409).json({ error: "Achievement already claimed" });
     }
 
     // build achievement hash
@@ -54,12 +66,18 @@ app.post("/api/sign-proof", async (req, res) => {
     //sign hash
     const signature = await signer.signMessage(ethers.getBytes(messageHash));
 
+    // record in db
+    await supabase.from("user_achievements").insert({
+      user_id: userId,
+      wallet_address: userAddress,
+      achievement_id: achievementId,
+    });
+
     return res.json({
       achievementHash,
       timestamp,
       signature,
       achievementName: achievement.name,
-      achievementDescription: achievement.description,
     });
   } catch (err) {
     console.error(err);

@@ -18,12 +18,14 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, account }) {
       if (account) {
         token.accessToken = account.access_token;
+        token.githubConnected = true;
       }
       return token;
     },
     async session({ session, token }) {
-      session.user.githubConnected = !!token.sub;
-      session.user.accessToken = token.accessToken; // ← forward token to session
+      session.user.id = token.sub!;
+      session.user.githubConnected = !!token.githubConnected;
+      session.user.accessToken = token.accessToken;
       return session;
     },
   },
