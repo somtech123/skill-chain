@@ -13,7 +13,8 @@ console.log("Trusted Signer Address:", signer.address);
 
 app.post("/api/sign-proof", async (req, res) => {
   try {
-    const { userAddress, achievementId } = req.body;
+    const { userAddress, achievementId, userId } = req.body;
+    console.log("Request body:", { userAddress, achievementId, userId });
 
     // validate inputs
     if (!userAddress || !achievementId) {
@@ -26,11 +27,19 @@ app.post("/api/sign-proof", async (req, res) => {
     }
 
     // fetch achievement from supabase if exist
+    console.log(
+      "Querying for achievementId:",
+      JSON.stringify(achievementId),
+      "length:",
+      achievementId.length,
+    );
+
     const { data: achievement, error } = await supabase
       .from("achievements")
       .select("*")
       .eq("id", achievementId)
       .single();
+    console.log("Supabase result:", { achievement, error });
 
     if (error || !achievement) {
       return res.status(404).json({ error: "Achievement not found" });
@@ -44,8 +53,17 @@ app.post("/api/sign-proof", async (req, res) => {
       .eq("achievement_id", achievementId)
       .single();
 
+    console.log("existing check:", {
+      existing,
+      userId,
+      achievementId,
+    });
+
     if (existing) {
-      return res.status(409).json({ error: "Achievement already claimed" });
+      return res.status(200).json({
+        alreadyClaimed: true,
+        achievementName: achievement.name,
+      });
     }
 
     // build achievement hash
@@ -66,19 +84,46 @@ app.post("/api/sign-proof", async (req, res) => {
     //sign hash
     const signature = await signer.signMessage(ethers.getBytes(messageHash));
 
-    // record in db
-    await supabase.from("user_achievements").insert({
-      user_id: userId,
-      wallet_address: userAddress,
-      achievement_id: achievementId,
-    });
-
     return res.json({
+      alreadyClaimed: false,
       achievementHash,
       timestamp,
       signature,
       achievementName: achievement.name,
     });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post("/api/confirm-proof", async (req, res) => {
+  console.log("===============================add db");
+  try {
+    const { userAddress, achievementId, userId, txHash } = req.body;
+
+    if (!userAddress || !achievementId || !userId || !txHash) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+    const { data: existing } = await supabase
+      .from("user_achievements")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("achievement_id", achievementId)
+      .single();
+
+    if (existing) {
+      return res.status(200).json({ success: true, alreadyRecorded: true });
+    }
+
+    await supabase.from("user_achievements").insert({
+      user_id: userId,
+      wallet_address: userAddress,
+      achievement_id: achievementId,
+      tx_hash: txHash,
+    });
+
+    return res.json({ success: true });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Internal server error" });
@@ -97,9 +142,40 @@ app.get("/api/achievements", async (req, res) => {
   res.json(data);
 });
 
+//get achievement name by hash
+
+app.get("/api/achievement-by-hash/:hash", async (req, res) => {
+  try {
+    const { hash } = req.params;
+
+    // fetch all achievements from db
+    const { data: achievements, error } = await supabase
+      .from("achievements")
+      .select("id, name, description");
+
+    if (error)
+      return res.status(500).json({ error: "Failed to fetch achievements" });
+
+    const match = achievements?.find((e) => {
+      const computed = ethers.solidityPackedKeccak256(["string"], [e.id]);
+      return computed.toLowerCase() === hash.toLowerCase();
+    });
+
+    if (!match) return res.status(400).json({ error: "Achievement not found" });
+    res.json({
+      id: match.id,
+      name: match.name,
+      description: match.description,
+    });
+  } catch (e) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 app.get("/api/signer-address", (req, res) => {
   res.json({ address: signer.address });
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));

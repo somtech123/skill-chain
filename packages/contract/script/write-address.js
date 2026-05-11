@@ -12,7 +12,7 @@ const CHAIN_NAMES = {
 function getDeployedAddress(chainId) {
   const broadCastPath = path.join(
     __dirname,
-    `../broadcast/DeployProofVerifier.s.sol/${chainId}/run-latest.json`,
+    `../broadcast/Deploy.s.sol/${chainId}/run-latest.json`,
   );
 
   if (!fs.existsSync(broadCastPath)) {

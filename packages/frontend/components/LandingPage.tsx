@@ -7,7 +7,6 @@ import HowItWorksSection from "@/components/HowItWorkSection";
 import AchievementsSection from "@/components/AchievementSection";
 import CTASection from "@/components/CTAsection";
 import { useEffect, useState } from "react";
-import { useAccount } from "wagmi";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { OnboardingModal } from "./OnboardingModal";
@@ -15,37 +14,46 @@ import { useLogin } from "./hooks/useLogin";
 export default function LandingPage() {
   const [showModal, setShowModal] = useState(false);
 
-  const { status } = useSession();
+  const { status: sessionStatus, data: session } = useSession();
   const router = useRouter();
 
-  const { allDone, isConnected, githubConnected } = useLogin();
+  const { allDone, isConnected, githubConnected, status } = useLogin();
 
   useEffect(() => {
-    if (status === "loading") return;
+    if (sessionStatus === "loading") return;
+    const sessionExists = !!session?.user?.id;
 
-    if (allDone) {
-      sessionStorage.removeItem("skillchain_onboarding");
+    if (
+      sessionExists &&
+      (status === "success" || status === "already_claimed")
+    ) {
+      localStorage.removeItem("skillchain_onboarding");
 
       setShowModal(false);
-
       router.push("/dashboard");
-
       return;
     }
 
     // Only reopen modal if user intentionally started the flow
-    const started = sessionStorage.getItem("skillchain_onboarding");
-
-    if (started && isConnected && !githubConnected) {
-      setShowModal(true);
+    const started = localStorage.getItem("skillchain_onboarding");
+    if (started) {
+      if (!isConnected || !githubConnected) {
+        // Keep modal open while waiting for either step
+        setShowModal(true);
+      }
+      setShowModal(false);
     }
-  }, [allDone, isConnected, githubConnected, status, router]);
+  }, [allDone, isConnected, githubConnected, sessionStatus, status, router]);
 
   const handleClick = () => {
-    if (allDone) {
+    const sessionExists = !!session?.user?.id;
+    if (
+      sessionExists &&
+      (status === "success" || status === "already_claimed")
+    ) {
       router.push("/dashboard");
     } else {
-      sessionStorage.setItem("skillchain_onboarding", "true");
+      localStorage.setItem("skillchain_onboarding", "true");
       setShowModal(true);
     }
   };
@@ -59,7 +67,9 @@ export default function LandingPage() {
       <AchievementsSection />
       <CTASection />
 
-      {showModal && <OnboardingModal onClose={() => setShowModal(false)} />}
+      {showModal && (
+        <OnboardingModal onClose={() => setShowModal(false)} status={status} />
+      )}
     </div>
   );
 }

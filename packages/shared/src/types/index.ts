@@ -41,3 +41,18 @@ export interface MintedNFT {
   contractAddress: string;
   mintedAt: string;
 }
+
+export type Status =
+  | "idle"
+  | "pending"
+  | "success"
+  | "already_claimed"
+  | "error";
+
+export type SignProofResponse = {
+  alreadyClaimed: boolean;
+  achievementName: string;
+  achievementHash?: string;
+  timestamp?: number;
+  signature?: string;
+};

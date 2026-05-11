@@ -3,19 +3,22 @@
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useSession, signIn } from "next-auth/react";
+import { Status } from "@my-app/shared";
 
 type Props = {
   onClose: () => void;
+  status: Status;
 };
 
-export function OnboardingModal({ onClose }: Props) {
+export function OnboardingModal({ onClose, status }: Props) {
   const { isConnected, address } = useAccount();
   const { openConnectModal } = useConnectModal();
-  const { data: session, status } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
 
   const githubConnected = !!session?.user?.githubConnected;
+  const isPending = status === "pending";
 
-  if (status === "loading") {
+  if (sessionStatus === "loading") {
     return (
       <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
         <div className="bg-base rounded-2xl p-8 w-full max-w-md text-center">
@@ -29,12 +32,14 @@ export function OnboardingModal({ onClose }: Props) {
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
       <div className="bg-base rounded-2xl p-8 w-full max-w-md border border-base relative">
         {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-secondary hover:text-primary transition-colors"
-        >
-          ✕
-        </button>
+        {!isPending && (
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-secondary hover:text-primary transition-colors"
+          >
+            ✕
+          </button>
+        )}
 
         {/* Step indicators */}
         <div className="flex items-center gap-3 mb-8">
@@ -103,13 +108,34 @@ export function OnboardingModal({ onClose }: Props) {
             </p>
             <button
               onClick={() => {
-                sessionStorage.setItem("skillchain_onboarding", "true");
-                signIn("github");
+                localStorage.setItem("skillchain_onboarding", "true");
+                signIn("github", { callbackUrl: window.location.origin });
               }}
               className="btn-primary w-full py-3 rounded-xl font-semibold"
             >
               Authorize with GitHub
             </button>
+          </div>
+        )}
+
+        {isPending && (
+          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-center">
+            <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-2" />
+            <p className="text-sm text-blue-600 font-medium">
+              Submitting proof on-chain...
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              Please confirm the transaction in your wallet
+            </p>
+          </div>
+        )}
+
+        {/* error state */}
+        {status === "error" && (
+          <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl text-center">
+            <p className="text-sm text-red-600">
+              Transaction failed. Please try again.
+            </p>
           </div>
         )}
 

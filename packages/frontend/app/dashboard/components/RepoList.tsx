@@ -5,6 +5,12 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { MintButton } from "./MintButton";
 import NftCard from "./NftCard";
+import { UserData } from "../hooks/useUserProofs";
+
+type Props = {
+  data: UserData | null;
+  userLoading: boolean;
+};
 
 export async function RepoList() {
   const session = await getServerSession(authOptions);

@@ -1,0 +1,17 @@
+type User @entity(immutable: false) {
+  id: ID!
+  address: Bytes!
+  proofs: [Proof!]! @derivedFrom(field: "user")
+  totalProofs: BigInt!
+  firstSeenAt: BigInt!
+  lastSeenAt: BigInt!
+}
+
+type Proof @entity(immutable: true) {
+  id: ID!
+  user: User!
+  achievementHash: Bytes!
+  blockTimestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
