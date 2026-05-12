@@ -19,4 +19,14 @@ fs.writeFileSync(
   `export const ProofVerifier = ${JSON.stringify(artifact.abi, null, 2)} as const;`,
 );
 
+//export SoulBound ABI
+const nftArtifact = JSON.parse(
+  fs.readFileSync(`${artifactDir}/SoulboundNft.sol/SoulboundNft.json`, "utf-8"),
+);
+
+fs.writeFileSync(
+  `${outPutDir}/SoulboundNft.ts`,
+  `export const SoulboundNft = ${JSON.stringify(nftArtifact.abi, null, 2)} as const`,
+);
+
 console.log("ABIs exported to shared");
