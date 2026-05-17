@@ -9,6 +9,7 @@
   },
   "references": [
     { "path": "./packages/indexer" },
-    { "path": "./packages/shared" }
+    { "path": "./packages/shared" },
+    { "path": "./packages/backend" }
   ]
 }

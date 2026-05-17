@@ -56,3 +56,69 @@ export type SignProofResponse = {
   timestamp?: number;
   signature?: string;
 };
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+}
+
+export interface UserAchievement {
+  id: string;
+  user_id: string;
+  wallet_address: string;
+  achievement_id: string;
+  minted: boolean;
+  claimed_at: string | null;
+  tx_hash: string | null;
+  achievements: Achievement | null;
+}
+
+export interface AchievementStatus extends Achievement {
+  earned: boolean;
+  minted: boolean;
+  claimed_at: string | null;
+  tx_hash: string | null;
+}
+
+export interface PendingMint {
+  userAchievementId: string;
+  achievementId: string;
+  title: string | undefined;
+  claimed_at: string | null;
+}
+
+export interface UserAchievementsResponse {
+  success: boolean;
+  achievementStatus: AchievementStatus[];
+  pendingMints: PendingMint[];
+  minted: UserAchievement[];
+  nextAchievement: Achievement | null;
+}
+
+export interface ConfirmProofBody {
+  userAddress: string;
+  achievementId: string;
+  userId: string;
+  txHash: string;
+}
+
+export interface MarkMintedBody {
+  userId: string;
+  achievementId: string;
+}
+
+export interface NFTMetadata {
+  name: string;
+  description: string;
+  image: string;
+  attributes: { trait_type: string; value: string | number }[];
+}
+
+export interface MintResult {
+  achievementId: string;
+  name: string;
+  txHash: string;
+  status: "done" | "error";
+}

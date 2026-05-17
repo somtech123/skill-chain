@@ -76,7 +76,7 @@ export function useLogin() {
 
         const { achievementHash, timestamp, signature } = data;
 
-        const contractAddress = CONTRACT_ADDRESSES[chainId!]?.contract;
+        const contractAddress = CONTRACT_ADDRESSES[chainId!].proofVerifier;
         if (!contractAddress) {
           throw new Error(`No contract address for chain ${chainId}`);
         }

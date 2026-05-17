@@ -1,6 +1,10 @@
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { buildIndex, computeStates } from "@my-app/indexer";
-import { IndexedRepo } from "@my-app/shared";
+import {
+  BACKEND_URL,
+  IndexedRepo,
+  UserAchievementsResponse,
+} from "@my-app/shared";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { MintButton } from "./MintButton";
@@ -21,6 +25,36 @@ export async function RepoList() {
 
   const repos: IndexedRepo[] = await buildIndex(session.user.accessToken);
   const stats = computeStates(repos);
+  const userId = session.user.id;
+
+  let achievementsData: UserAchievementsResponse = {
+    success: true,
+    achievementStatus: [],
+    pendingMints: [],
+    minted: [],
+    nextAchievement: null,
+  };
+
+  try {
+    const res = await fetch(
+      `${BACKEND_URL}/api/user-achievements/${userId}`,
+      { cache: "no-store" }, // always fresh, no caching
+    );
+    if (!res.ok) {
+      console.error(
+        "Failed to fetch achievements:",
+        res.status,
+        res.statusText,
+      );
+    } else {
+      const json = await res.json();
+      achievementsData = json;
+    }
+  } catch (err) {
+    console.error("Achievements fetch error:", err);
+  }
+
+  const { achievementStatus, pendingMints, nextAchievement } = achievementsData;
 
   const mintedNfts = [
     {
@@ -64,6 +98,13 @@ export async function RepoList() {
           </div>
         ))}
       </div>
+      {nextAchievement && (
+        <div className="border border-base rounded-xl p-4">
+          <p className="text-sm text-secondary mb-1">Next achievement</p>
+          <p className="font-medium text-primary">{nextAchievement.name}</p>
+          <p className="text-sm text-gray-500">{nextAchievement.description}</p>
+        </div>
+      )}
 
       {/* Top languages */}
       <div className="border border-base rounded-xl p-4 space-y-3">
@@ -128,7 +169,11 @@ export async function RepoList() {
             {stats.totalRepos} repos · {stats.totalCommits.toLocaleString()}{" "}
             commits · score {stats.score}
           </p>
-          <MintButton stats={stats} />
+          <MintButton
+            stats={stats}
+            pendingMints={pendingMints}
+            userId={userId}
+          />
         </div>
       </div>
 

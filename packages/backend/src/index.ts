@@ -1,14 +1,16 @@
-const express = require("express");
-const { ethers } = require("ethers");
-const cors = require("cors");
-const supabase = require("./superbase");
-require("dotenv").config();
+import express from "express";
+import { ethers } from "ethers";
+import cors from "cors";
+import supabase from "./superbase";
+import { uploadNFTToIPFS } from "./pinata";
+import dotenv from "dotenv";
+import { UserAchievement } from "@my-app/shared";
+dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-const signer = new ethers.Wallet(process.env.SIGNER_PRIVATE_KEY);
+const signer = new ethers.Wallet(process.env.SIGNER_PRIVATE_KEY!);
 console.log("Trusted Signer Address:", signer.address);
 
 app.post("/api/sign-proof", async (req, res) => {
@@ -121,6 +123,7 @@ app.post("/api/confirm-proof", async (req, res) => {
       wallet_address: userAddress,
       achievement_id: achievementId,
       tx_hash: txHash,
+      minted: false,
     });
 
     return res.json({ success: true });
@@ -168,7 +171,7 @@ app.get("/api/achievement-by-hash/:hash", async (req, res) => {
       description: match.description,
     });
   } catch (e) {
-    console.error(err);
+    console.error(e);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -177,5 +180,140 @@ app.get("/api/signer-address", (req, res) => {
   res.json({ address: signer.address });
 });
 
+app.get("/api/user-achievements/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    //fetch all user achievement
+    const { data: userAchievements, error: uaError } = await supabase
+      .from("user_achievements")
+      .select(
+        `
+            id,
+            achievement_id,
+            minted,
+            claimed_at,
+            tx_hash,
+            wallet_address,
+            achievements (
+          id,
+          name,
+          description,
+          created_at
+            )
+          `,
+      )
+      .eq("user_id", userId)
+      .order("claimed_at", { ascending: true })
+      .returns<UserAchievement[]>();
+    if (uaError) {
+      console.error("uaError:", uaError);
+      return res
+        .status(500)
+        .json({ error: "Failed to fetch user achievements" });
+    }
+
+    const { data: allAchievements, error: achError } = await supabase
+      .from("achievements")
+      .select("id, name, description, created_at")
+      .order("created_at", { ascending: true });
+
+    if (achError) {
+      console.error("achError:", achError);
+      return res.status(500).json({ error: "Failed to fetch achievements" });
+    }
+
+    const earnedId = new Set(userAchievements.map((a) => a.achievement_id));
+    const minted = userAchievements.filter((a) => a.minted);
+    const unminted = userAchievements.filter((a) => !a.minted);
+
+    const achievementStatus = allAchievements.map((achievement) => {
+      const userRecord = userAchievements.find(
+        (ua) => ua.achievement_id === achievement.id,
+      );
+      return {
+        ...achievement,
+        earned: !!userRecord,
+        minted: userRecord?.minted ?? false,
+        claimed_at: userRecord?.claimed_at ?? null,
+        tx_hash: userRecord?.tx_hash ?? null,
+      };
+    });
+
+    const pendingMints = unminted.map((a) => ({
+      userAchievementId: a.id,
+      achievementId: a.achievement_id,
+      name: a.achievements?.name,
+      claimed_at: a.claimed_at,
+    }));
+
+    const nextAchievement =
+      allAchievements.find((a) => !earnedId.has(a.id)) ?? null;
+
+    const payload = {
+      success: true,
+      achievementStatus,
+      pendingMints,
+      minted,
+      nextAchievement,
+    };
+
+    console.log("user achievements payload:", payload);
+    return res.json(payload);
+  } catch (e) {
+    console.error("Unexpected error in /user-achievements:", e);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post("/api/mark-minted", async (req, res) => {
+  try {
+    const { userId, achievementId } = req.body;
+
+    if (!userId || !achievementId)
+      return res.status(400).json({ error: "Missing fields" });
+
+    const { error: updateError } = await supabase
+      .from("user_achievements")
+      .update({ minted: true })
+      .eq("user_id", userId)
+      .eq("achievement_id", achievementId);
+
+    if (updateError)
+      return res
+        .status(500)
+        .json({ error: "Failed to mark achievement as minted" });
+
+    return res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post("/api/mint", async (req, res) => {
+  try {
+    const { stats, achievementId, userId } = req.body;
+    console.log("Request body:", { stats, achievementId, userId });
+
+    if (!stats || !achievementId || !userId) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
+    const metadataUri = await uploadNFTToIPFS(achievementId, stats);
+
+    return res.json({
+      success: true,
+      userId: userId,
+      metadataUri,
+    });
+  } catch (e) {
+    console.error("Mint error:", e);
+    return res.status(500).json({ error: "Mint failed" });
+  }
+});
+app._router.stack.forEach((r: any) => {
+  if (r.route?.path) console.log(r.route.path);
+});
 const PORT = process.env.PORT || 3002;
 app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
