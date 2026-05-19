@@ -1,15 +1,21 @@
 import express from "express";
-import { ethers } from "ethers";
+import { Contract, ethers } from "ethers";
 import cors from "cors";
 import supabase from "./superbase";
 import { uploadNFTToIPFS } from "./pinata";
 import dotenv from "dotenv";
-import { UserAchievement } from "@my-app/shared";
+import {
+  CONTRACT_ADDRESSES,
+  SoulboundNft,
+  UserAchievement,
+} from "@my-app/shared";
+import { RPC_URLS } from "./config";
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
 const signer = new ethers.Wallet(process.env.SIGNER_PRIVATE_KEY!);
 console.log("Trusted Signer Address:", signer.address);
 
@@ -293,19 +299,61 @@ app.post("/api/mark-minted", async (req, res) => {
 
 app.post("/api/mint", async (req, res) => {
   try {
-    const { stats, achievementId, userId } = req.body;
-    console.log("Request body:", { stats, achievementId, userId });
+    const { stats, achievementId, userId, address } = req.body;
+    const chainId = Number(req.body.chainId); // force cast
 
-    if (!stats || !achievementId || !userId) {
+    if (!stats || !achievementId || !userId || !address || !chainId) {
       return res.status(400).json({ error: "Missing fields" });
     }
 
     const metadataUri = await uploadNFTToIPFS(achievementId, stats);
+    const achievementHash = ethers.solidityPackedKeccak256(
+      ["string", "string"],
+      [String(achievementId), String(userId)],
+    );
+
+    const rpcUrl = RPC_URLS[chainId];
+    if (!rpcUrl) throw new Error(`No RPC URL for chain ${chainId}`);
+
+    const contractAddress = CONTRACT_ADDRESSES[chainId!].soulboundNft;
+    console.log(contractAddress);
+    if (!contractAddress) {
+      throw new Error(`No contract address for chain ${chainId}`);
+    }
+
+    console.log("=== MINT DEBUG ===");
+    console.log("chainId:", chainId);
+    console.log("rpcUrl:", rpcUrl);
+    console.log("contractAddress:", contractAddress);
+    console.log("to (address):", address);
+    console.log("metadataUri:", metadataUri);
+    console.log("achievementHash:", achievementHash);
+    console.log("minterWallet set:", !!process.env.MINTER_PRIVATE_KEY);
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const minterWallet = new ethers.Wallet(
+      process.env.MINTER_PRIVATE_KEY!,
+      provider,
+    );
+    const contract = new ethers.Contract(
+      contractAddress,
+      SoulboundNft,
+      minterWallet,
+    );
+
+    const tx = await contract.issue(address, metadataUri, achievementHash);
+    const hash = await tx.wait();
+    console.log("hash is", { hash });
+    console.log("status:", hash.status);
+    if (hash.status === 0) {
+      throw new Error("Transaction mined but reverted");
+    }
 
     return res.json({
       success: true,
       userId: userId,
-      metadataUri,
+      metadataUri: metadataUri,
+      achievementHash: hash.hash,
     });
   } catch (e) {
     console.error("Mint error:", e);
@@ -313,7 +361,10 @@ app.post("/api/mint", async (req, res) => {
   }
 });
 app._router.stack.forEach((r: any) => {
-  if (r.route?.path) console.log(r.route.path);
+  if (r.route?.path) {
+    console.log(r.route.path);
+    console.log(RPC_URLS[11155111]);
+  }
 });
 const PORT = process.env.PORT || 3002;
 app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));

@@ -6,7 +6,7 @@ dataSources:
     name: ProofVerifier
     network: sepolia
     source:
-      address: "0x0E8C14B3f77540feFafA87a9c6406894E30fB9Cb"
+      address: "0xfa4ecd7e60a06567c5d16e7fcb05c46f479d0451"
       abi: ProofVerifier
       startBlock: 8000000
     mapping:
@@ -23,3 +23,26 @@ dataSources:
         - event: ProofSubmitted(indexed address,bytes32)
           handler: handleProofSubmitted
       file: ./src/mapping.ts
+
+  - kind: ethereum
+    name: SoulboundNft
+    network: sepolia
+    source:
+      address: "0xb22f6d60c49f325813185c77b8a5b3b23eb130e6"
+      abi: SoulboundNft
+      startBlock: 8000000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - NFT
+      abis:
+        - name: SoulboundNft
+          file: ./abis/SoulboundNft.json
+      eventHandlers:
+        - event: Issued(indexed address,indexed uint256,indexed bytes32,string)
+          handler: handleIssued
+        - event: Revoked(indexed address,indexed uint256,bytes32)
+          handler: handleRevoked
+      file: ./src/nftMapping.ts

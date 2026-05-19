@@ -39,7 +39,7 @@ contract SoulboundNft is ERC721URIStorage, Ownable {
         isMinter[_minter] = authorized;
         emit MinterUpdated(_minter, authorized);
     }
-
+ 
     function _update(address to,
         uint256 tokenId,
         address auth) internal override returns (address){

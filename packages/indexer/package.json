@@ -8,13 +8,13 @@
   "exports": {
     ".": "./src/index.ts"
   },
-    "scripts": {
-        "sync-abi": "cp ../contract/out/ProofVerifier.sol/ProofVerifier.json abis/ProofVerifier.json",
-        "graph:codegen": "pnpm sync-abi && graph codegen",
-        "graph:build": "graph build",
-        "auth": "graph auth",
-        "graph:deploy": "graph deploy skill-chain"
-    },
+  "scripts": {
+  "sync-abi": "cp ../contract/out/ProofVerifier.sol/ProofVerifier.json abis/ProofVerifier.json && cp ../contract/out/SoulboundNft.sol/SoulboundNft.json abis/SoulboundNft.json",
+  "graph:codegen": "pnpm sync-abi && graph codegen",
+  "graph:build": "graph build",
+  "auth": "graph auth",
+  "graph:deploy": "graph deploy skill-chain"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",

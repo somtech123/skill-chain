@@ -3,10 +3,13 @@
 import { useState } from "react";
 import {
   BACKEND_URL,
+  CONTRACT_ADDRESSES,
   DeveloperStats,
   MintResult,
   PendingMint,
+  SoulboundNft,
 } from "@my-app/shared";
+import { useAccount, useWriteContract } from "wagmi";
 
 interface Props {
   stats: DeveloperStats;
@@ -18,6 +21,9 @@ export function MintButton({ stats, pendingMints, userId }: Props) {
   const [minting, setMinting] = useState(false);
   const [results, setResults] = useState<MintResult[]>([]);
   const [currentMinting, setCurrentMinting] = useState<string | null>(null);
+  const { writeContractAsync } = useWriteContract();
+  const { address, chain } = useAccount();
+  const chainId = chain?.id;
 
   async function handleMint() {
     if (pendingMints.length === 0) return;
@@ -38,31 +44,50 @@ export function MintButton({ stats, pendingMints, userId }: Props) {
             stats,
             achievementId: pending.achievementId,
             userId,
+            address,
+            chainId,
           }),
         });
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
+        const { metadataUri, achievementHash } = data;
 
-        ///mint on chain here
+        // if (!address) return;
 
-        // const markRes = await fetch(`${BACKEND_URL}/api/mark-minted`, {
-        //   method: "POST",
-        //   headers: { "Content-Type": "application/json" },
-        //   body: JSON.stringify({
-        //     userId: data.userId,
-        //     achievementId: pending.achievementId,
-        //   }),
+        // let txHash: string;
+        // try {
+        //   txHash = await writeContractAsync({
+        //     address: contractAddress as `0x${string}`,
+        //     abi: SoulboundNft,
+        //     functionName: "issue",
+        //     args: [address, metadataUri, achievementHash],
+        //   });
+        // } catch (e) {
+        //   throw new Error(e instanceof Error ? e.message : String(e));
+        // }
+        // console.log("return", {
+        //   metadataUri,
+        //   achievementHash,
         // });
 
-        // if (!markRes.ok) throw new Error("Failed to mark as minted");
+        const markRes = await fetch(`${BACKEND_URL}/api/mark-minted`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: data.userId,
+            achievementId: pending.achievementId,
+          }),
+        });
+
+        if (!markRes.ok) throw new Error("Failed to mark as minted");
 
         setResults((prev) => [
           ...prev,
           {
             achievementId: pending.achievementId,
             name: pending.title ?? pending.achievementId,
-            txHash: "lll",
+            txHash: "",
             status: "done",
           },
         ]);
@@ -91,6 +116,7 @@ export function MintButton({ stats, pendingMints, userId }: Props) {
   return (
     <div className="mt-4 space-y-3">
       {/* Pending list */}
+      <p>{}</p>
       {results.length === 0 && !minting && (
         <div className="flex flex-wrap gap-2">
           {pendingMints.map((p) => (
@@ -136,7 +162,7 @@ export function MintButton({ stats, pendingMints, userId }: Props) {
                     rel="noopener noreferrer"
                     className="underline"
                   >
-                    View on Etherscan
+                    View on Etherscan {result.txHash}
                   </a>
                 </p>
               ) : (

@@ -15,3 +15,14 @@ type Proof @entity(immutable: true) {
   blockNumber: BigInt!
   transactionHash: Bytes!
 }
+
+type NFT @entity(immutable: false) {
+  id: ID!
+  owner: User!
+  tokenId: BigInt!
+  achievement: Bytes!
+  tokenURI: String!
+  revoked: Boolean!
+  blockTimestamp: BigInt!
+  txHash: Bytes!
+}

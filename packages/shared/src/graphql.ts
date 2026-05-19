@@ -61,3 +61,15 @@ export const GET_ALL_USERS = `
         }
     }
 `;
+
+export const GET_USERS_NFTs = `query GetUserNFTs($owner: String!) {
+  nfts(where: { owner: $owner, revoked: false }) {
+    id
+    tokenId
+    tokenURI
+    achievement
+    revoked
+    blockTimestamp
+    txHash
+  }
+}`;
