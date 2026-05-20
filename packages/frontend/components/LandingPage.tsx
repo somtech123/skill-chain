@@ -23,6 +23,7 @@ export default function LandingPage() {
     if (sessionStatus === "loading") return;
     const sessionExists = !!session?.user?.id;
 
+    // done — clear flag, close modal, redirect
     if (
       sessionExists &&
       (status === "success" || status === "already_claimed")
@@ -34,14 +35,15 @@ export default function LandingPage() {
       return;
     }
 
-    // Only reopen modal if user intentionally started the flow
+    // Only reopen modal if user intentionally started the flow but hasn't finished
     const started = localStorage.getItem("skillchain_onboarding");
     if (started) {
       if (!isConnected || !githubConnected) {
         // Keep modal open while waiting for either step
         setShowModal(true);
+      } else {
+        setShowModal(false);
       }
-      setShowModal(false);
     }
   }, [allDone, isConnected, githubConnected, sessionStatus, status, router]);
 

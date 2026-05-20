@@ -75,22 +75,6 @@ export default function HeroSection({ onLaunch }: Props) {
                   }}
                 >
                   <CodeHexagon />
-                  {/* <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-                    <path
-                      d="M20 60V30l20-10 20 10v30L40 70 20 60z"
-                      stroke="white"
-                      strokeWidth="2"
-                      fill="none"
-                      opacity=".5"
-                    />
-                    <path
-                      d="M34 38h12M34 44h8M34 50h10"
-                      stroke="white"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                    <circle cx="40" cy="32" r="4" fill="white" opacity=".8" />
-                  </svg> */}
                 </div>
               </div>
             </div>

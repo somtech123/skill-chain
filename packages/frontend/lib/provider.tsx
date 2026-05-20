@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider } from "next-auth/react";
 import { ReactNode, useState } from "react";
 import { WagmiProvider } from "wagmi";
-import { WalletCookieSync } from "./walletCooieSync";
+import { WalletCookieSync } from "./walletCookieSync";
 
 export default function Providers(props: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());

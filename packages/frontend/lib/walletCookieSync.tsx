@@ -3,6 +3,8 @@
 import { useAccount } from "wagmi";
 import { useEffect, useRef } from "react";
 
+//syncs  wagmi wallet connection state to a browser cookie so  server components can read it.
+
 export function WalletCookieSync() {
   const { isConnected } = useAccount();
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
