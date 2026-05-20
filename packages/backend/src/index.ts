@@ -10,6 +10,9 @@ import {
   UserAchievement,
 } from "@my-app/shared";
 import { RPC_URLS } from "./config";
+import { requireAuth } from "./middleware/requireAuth";
+import crypto from "crypto";
+
 dotenv.config();
 
 const app = express();
@@ -17,19 +20,48 @@ app.use(cors());
 app.use(express.json());
 
 const signer = new ethers.Wallet(process.env.SIGNER_PRIVATE_KEY!);
-console.log("Trusted Signer Address:", signer.address);
+const NONCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-app.post("/api/sign-proof", async (req, res) => {
+//----------Helper---------------------------------
+function extractField(message: string, field: string): string | null {
+  // Matches "Field:\n<value>" up to the next newline
+  const lines = message.split("\n");
+  const idx = lines.findIndex((l) => l.trim() === `${field}:`);
+  return idx !== -1 && lines[idx + 1] ? lines[idx + 1].trim() : null;
+}
+
+//-------GET /api/nonce----------------------------------
+app.get("/api/nonce", requireAuth, async (req, res) => {
+  const userId = req.user!.id;
+
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const expiresAt = new Date(Date.now() + NONCE_TTL_MS).toISOString();
+  const { error } = await supabase
+    .from("nonces")
+    .insert({ user_id: userId, nonce, expires_at: expiresAt });
+
+  if (error) {
+    console.error("Failed to store nonce:", error);
+    return res.status(500).json({ error: "Failed to generate nonce" });
+  }
+
+  return res.json({ nonce });
+});
+
+//--------POST /api/sign-proof---------------------
+
+app.post("/api/sign-proof", requireAuth, async (req, res) => {
   try {
-    const { userAddress, achievementId, userId } = req.body;
+    const userId = req.user!.id;
+
+    const { userAddress, achievementId, message, walletSignature } = req.body;
     console.log("Request body:", { userAddress, achievementId, userId });
 
     // validate inputs
-    if (!userAddress || !achievementId) {
-      return res
-        .status(400)
-        .json({ error: "Missing userAddress or achievementId" });
+    if (!userAddress || !achievementId || !message || !walletSignature) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
+
     if (!ethers.isAddress(userAddress)) {
       return res.status(400).json({ error: "Invalid address" });
     }
@@ -42,12 +74,58 @@ app.post("/api/sign-proof", async (req, res) => {
       achievementId.length,
     );
 
+    //Parse fields out of the signed message
+    const messageUserId = extractField(
+      message,
+      "Claiming achievement for user",
+    );
+    const messageAddress = extractField(message, "Address");
+    const nonce = extractField(message, "Nonce");
+    if (!messageUserId || !messageAddress || !nonce) {
+      return res.status(400).json({ error: "Malformed message" });
+    }
+
+    //Message fields must match session + request
+    if (messageUserId !== userId) {
+      return res.status(403).json({ error: "User ID mismatch" });
+    }
+    if (messageAddress.toLowerCase() !== userAddress.toLowerCase()) {
+      return res.status(403).json({ error: "Address mismatch in message" });
+    }
+
+    //Verify wallet signature recovers to the claimed address
+    let recoveredAddress: string;
+    try {
+      recoveredAddress = ethers.verifyMessage(message, walletSignature);
+    } catch {
+      return res.status(400).json({ error: "Invalid wallet signature" });
+    }
+
+    if (recoveredAddress.toLowerCase() !== userAddress.toLowerCase()) {
+      return res.status(403).json({ error: "Wallet signature mismatch" });
+    }
+
+    //Consume nonce atomically
+
+    const { data: consumedNonce, error: nonceError } = await supabase
+      .from("nonces")
+      .delete()
+      .eq("user_id", userId)
+      .eq("nonce", nonce)
+      .gt("expires_at", new Date().toISOString())
+      .select("id")
+      .single();
+
+    if (nonceError || !consumedNonce) {
+      return res.status(403).json({ error: "Invalid or expired nonce" });
+    }
+
+    //Fetch achievement
     const { data: achievement, error } = await supabase
       .from("achievements")
       .select("*")
       .eq("id", achievementId)
       .single();
-    console.log("Supabase result:", { achievement, error });
 
     if (error || !achievement) {
       return res.status(404).json({ error: "Achievement not found" });
@@ -105,10 +183,12 @@ app.post("/api/sign-proof", async (req, res) => {
   }
 });
 
-app.post("/api/confirm-proof", async (req, res) => {
-  console.log("===============================add db");
+//-------------POST /api/confirm-proof -------------------
+app.post("/api/confirm-proof", requireAuth, async (req, res) => {
   try {
-    const { userAddress, achievementId, userId, txHash } = req.body;
+    const userId = req.user!.id;
+
+    const { userAddress, achievementId, txHash } = req.body;
 
     if (!userAddress || !achievementId || !userId || !txHash) {
       return res.status(400).json({ error: "Missing fields" });
