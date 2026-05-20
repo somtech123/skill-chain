@@ -56,12 +56,18 @@ export type SignProofResponse = {
   timestamp?: number;
   signature?: string;
 };
+export interface AchievementCriteria {
+  minRepos?: number;
+  minCommits?: number;
+  minScore?: number;
+}
 
 export interface Achievement {
   id: string;
   name: string;
   description: string;
   created_at: string;
+  criteria: AchievementCriteria | null;
 }
 
 export interface UserAchievement {
@@ -81,6 +87,9 @@ export interface AchievementStatus extends Achievement {
   claimed_at: string | null;
   tx_hash: string | null;
 }
+export interface NextAchievement extends Achievement {
+  reached: boolean;
+}
 
 export interface PendingMint {
   userAchievementId: string;
@@ -94,7 +103,7 @@ export interface UserAchievementsResponse {
   achievementStatus: AchievementStatus[];
   pendingMints: PendingMint[];
   minted: UserAchievement[];
-  nextAchievement: Achievement | null;
+  nextAchievement: NextAchievement | null;
 }
 
 export interface ConfirmProofBody {
@@ -121,4 +130,33 @@ export interface MintResult {
   name: string;
   txHash: string;
   status: "done" | "error";
+}
+
+export interface UserNft {
+  id: string; // subgraph entity ID
+  tokenId: string; // comes as string from GraphQL
+  tokenURI: string;
+  achievement: string;
+  revoked: boolean;
+  blockTimestamp: string;
+  txHash: string;
+}
+
+export interface GetUserNFTsResponse {
+  data: {
+    nfts: UserNft[];
+  };
+  errors?: { message: string }[];
+}
+
+export interface NftAttribute {
+  trait_type: string;
+  value: string | number;
+}
+
+export interface NftMetadata {
+  name: string;
+  description: string;
+  image: string;
+  attributes: NftAttribute[];
 }

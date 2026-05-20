@@ -1,10 +1,15 @@
-import { GET_USERS_NFTs, GRAPH_URL } from "@my-app/shared";
+import {
+  GET_USERS_NFTs,
+  GetUserNFTsResponse,
+  GRAPH_URL,
+  UserNft,
+} from "@my-app/shared";
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 
 export function useUserNft() {
   const { address } = useAccount();
-  const [nfts, setNfts] = useState([]);
+  const [nfts, setNfts] = useState<UserNft[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,12 +32,12 @@ export function useUserNft() {
 
         if (!res.ok) throw new Error("Failed to fetch NFTs");
 
-        const { data, errors } = await res.json();
+        const { data, errors } = (await res.json()) as GetUserNFTsResponse;
 
         // GraphQL errors come in the body, not as HTTP errors
         if (errors?.length) throw new Error(errors[0].message);
 
-        setNfts(data?.user?.nfts ?? []);
+        setNfts(data?.nfts ?? []);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Something went wrong");
       } finally {

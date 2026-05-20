@@ -51,7 +51,7 @@ export function MintButton({ stats, pendingMints, userId }: Props) {
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        const { metadataUri, achievementHash } = data;
+        const { metadataUri, txHash } = data;
 
         // if (!address) return;
 
@@ -77,6 +77,8 @@ export function MintButton({ stats, pendingMints, userId }: Props) {
           body: JSON.stringify({
             userId: data.userId,
             achievementId: pending.achievementId,
+            walletAddress: address,
+            txHash: txHash,
           }),
         });
 
@@ -186,29 +188,4 @@ export function MintButton({ stats, pendingMints, userId }: Props) {
       )}
     </div>
   );
-
-  // return (
-  //   <div className="mt-4">
-  //     {status === "idle" && (
-  //       <button
-  //         onClick={handleMint}
-  //         className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-  //       >
-  //         Mint Developer NFT
-  //       </button>
-  //     )}
-  //     {status === "minting" && (
-  //       <p className="text-sm text-gray-500">Minting your NFT...</p>
-  //     )}
-  //     {status === "done" && (
-  //       <p className="text-sm text-green-600">
-  //         ✅ Minted! href={`https://etherscan.io/tx/}`}
-  //         target="_blank" className="underline" View on Etherscan
-  //       </p>
-  //     )}
-  //     {status === "error" && (
-  //       <p className="text-sm text-red-500">❌ Minting failed. Try again.</p>
-  //     )}
-  //   </div>
-  // );
 }

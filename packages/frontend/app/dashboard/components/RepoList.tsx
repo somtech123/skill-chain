@@ -8,8 +8,10 @@ import {
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { MintButton } from "./MintButton";
-import NftCard from "./NftCard";
+
 import { UserData } from "../hooks/useUserProofs";
+import MintedNft from "./MintedNft";
+import { AutoClaimTrigger } from "./AutoClaimTrigger";
 
 type Props = {
   data: UserData | null;
@@ -37,8 +39,10 @@ export async function RepoList() {
 
   try {
     const res = await fetch(
-      `${BACKEND_URL}/api/user-achievements/${userId}`,
-      { cache: "no-store" }, // always fresh, no caching
+      // `${BACKEND_URL}/api/user-achievements/${userId}`,
+      // { cache: "no-store" }, // always fresh, no caching
+      `${BACKEND_URL}/api/user-achievements/${userId}?totalRepos=${stats.totalRepos}&totalCommits=${stats.totalCommits}&score=${stats.score}`,
+      { cache: "no-store" },
     );
     if (!res.ok) {
       console.error(
@@ -54,31 +58,44 @@ export async function RepoList() {
     console.error("Achievements fetch error:", err);
   }
 
-  const { achievementStatus, pendingMints, nextAchievement } = achievementsData;
+  let justClaimed = false;
 
-  const mintedNfts = [
-    {
-      id: 1,
-      txHash: "0xabc123def456",
-      score: 820,
-      repos: 38,
-      commits: 1100,
-      contractAddress: "0x1234abcd5678ef",
-      mintedAt: "2024-01-15",
-    },
-    {
-      id: 2,
-      txHash: "0xdef789abc012",
-      score: 640,
-      repos: 28,
-      commits: 800,
-      contractAddress: "0x1234abcd5678ef",
-      mintedAt: "2024-03-20",
-    },
-  ];
+  if (achievementsData.nextAchievement?.reached) {
+    console.log("claiming achievement:", achievementsData.nextAchievement.id);
+
+    try {
+      const claimRes = await fetch(`${BACKEND_URL}/api/claim-achievement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          achievementId: achievementsData.nextAchievement.id,
+        }),
+      });
+      const claimData = await claimRes.json();
+      if (claimRes.ok && !claimData.alreadyClaimed) {
+        justClaimed = true;
+
+        const refetch = await fetch(
+          `${BACKEND_URL}/api/user-achievements/${userId}?totalRepos=${stats.totalRepos}&totalCommits=${stats.totalCommits}&score=${stats.score}`,
+          { cache: "no-store" },
+        );
+        if (refetch.ok) {
+          achievementsData = await refetch.json();
+          console.log("refetched pendingMints:", achievementsData.pendingMints);
+        }
+      }
+    } catch (err) {
+      console.error("Auto-claim error:", err);
+    }
+  }
+
+  const { pendingMints, nextAchievement } = achievementsData;
 
   return (
     <div className="space-y-8">
+      {/*triggers refresh if just claimed */}
+      <AutoClaimTrigger claimed={justClaimed} />
       {/* Developer Stats Card */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
@@ -103,6 +120,69 @@ export async function RepoList() {
           <p className="text-sm text-secondary mb-1">Next achievement</p>
           <p className="font-medium text-primary">{nextAchievement.name}</p>
           <p className="text-sm text-gray-500">{nextAchievement.description}</p>
+
+          {nextAchievement!.criteria?.minRepos && (
+            <div>
+              <div className="flex justify-between text-xs text-secondary mb-1">
+                <span>Repos</span>
+                <span>
+                  {stats.totalRepos} / {nextAchievement!.criteria.minRepos}
+                </span>
+              </div>
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-indigo-500 rounded-full transition-all"
+                  style={{
+                    width: `${Math.min((stats.totalRepos / nextAchievement!.criteria.minRepos) * 100, 100)}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {nextAchievement!.criteria?.minCommits && (
+            <div>
+              <div className="flex justify-between text-xs text-secondary mb-1">
+                <span>Commits</span>
+                <span>
+                  {stats.totalCommits} / {nextAchievement!.criteria.minCommits}
+                </span>
+              </div>
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-indigo-500 rounded-full transition-all"
+                  style={{
+                    width: `${Math.min((stats.totalCommits / nextAchievement!.criteria.minCommits) * 100, 100)}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {nextAchievement!.criteria?.minScore && (
+            <div>
+              <div className="flex justify-between text-xs text-secondary mb-1">
+                <span>Score</span>
+                <span>
+                  {stats.score} / {nextAchievement!.criteria.minScore}
+                </span>
+              </div>
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-indigo-500 rounded-full transition-all"
+                  style={{
+                    width: `${Math.min((stats.score / nextAchievement!.criteria.minScore) * 100, 100)}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {nextAchievement.reached && (
+            <p className="text-xs text-green-500 font-medium">
+              🎉 Achievement reached — ready to mint below
+            </p>
+          )}
         </div>
       )}
 
@@ -139,7 +219,7 @@ export async function RepoList() {
 
       {/* NFT badge + mint */}
       <div className="border rounded-xl p-4 flex gap-6 items-center flex-wrap">
-        <div className="w-28 h-28 bg-indigo-50 rounded-xl flex items-center justify-center flex-shrink-0">
+        <div className="w-28 h-28 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
           {/* swap with real NFT image once minted */}
           <svg width="64" height="64" viewBox="0 0 72 72" fill="none">
             <polygon
@@ -178,37 +258,7 @@ export async function RepoList() {
       </div>
 
       {/* Minted NFTs */}
-      <div>
-        <p className="font-medium mb-1 text-primary">
-          Minted NFTs{" "}
-          <span className="text-sm font-normal text-secondary">
-            ({mintedNfts.length})
-          </span>
-        </p>
-        <p className="text-xs text-gray-400 mb-3">
-          Click any card to view on OpenSea, Rarible, or inspect metadata
-        </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {mintedNfts.map((nft) => (
-            <NftCard key={nft.id} {...nft} />
-          ))}
-        </div>
-      </div>
-
-      {/* Repo List
-      <div className="space-y-4">
-        {repos.map((repo) => (
-          <div key={repo.id} className="p-4 rounded-lg border border-gray-200">
-            <h2 className="font-semibold text-gray-900">{repo.fullName}</h2>
-            <p className="text-sm text-gray-500 mb-2">{repo.description}</p>
-            <div className="flex gap-4 text-xs text-gray-400">
-              <span>{repo.language}</span>
-              <span>⭐ {repo.stars}</span>
-              <span>{repo.commits.length} commits</span>
-            </div>
-          </div>
-        ))}
-      </div> */}
+      <MintedNft />
     </div>
   );
 }

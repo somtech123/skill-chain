@@ -189,6 +189,23 @@ app.get("/api/signer-address", (req, res) => {
 app.get("/api/user-achievements/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
+    const { totalRepos, totalCommits, score } = req.query;
+
+    const stats = {
+      total_repos: Number(totalRepos ?? 0),
+      total_commits: Number(totalCommits ?? 0),
+      score: Number(score ?? 0),
+    };
+
+    function meetsCriteria(criteria: any): boolean {
+      if (!criteria) return false;
+      if (criteria.minRepos && stats.total_repos < criteria.minRepos)
+        return false;
+      if (criteria.minCommits && stats.total_commits < criteria.minCommits)
+        return false;
+      if (criteria.minScore && stats.score < criteria.minScore) return false;
+      return true;
+    }
 
     //fetch all user achievement
     const { data: userAchievements, error: uaError } = await supabase
@@ -219,9 +236,10 @@ app.get("/api/user-achievements/:userId", async (req, res) => {
         .json({ error: "Failed to fetch user achievements" });
     }
 
+    // fetch all achievements with criteria
     const { data: allAchievements, error: achError } = await supabase
       .from("achievements")
-      .select("id, name, description, created_at")
+      .select("id, name, description, created_at,criteria")
       .order("created_at", { ascending: true });
 
     if (achError) {
@@ -253,8 +271,18 @@ app.get("/api/user-achievements/:userId", async (req, res) => {
       claimed_at: a.claimed_at,
     }));
 
+    // const nextAchievement =
+    //   allAchievements.find((a) => !earnedId.has(a.id)) ?? null;
+
+    // next unearned achievement with reached flag
     const nextAchievement =
-      allAchievements.find((a) => !earnedId.has(a.id)) ?? null;
+      allAchievements
+        .filter((a) => !earnedId.has(a.id))
+        .map((a) => ({
+          ...a,
+          reached: meetsCriteria(a.criteria),
+        }))
+        .at(0) ?? null;
 
     const payload = {
       success: true,
@@ -272,16 +300,49 @@ app.get("/api/user-achievements/:userId", async (req, res) => {
   }
 });
 
-app.post("/api/mark-minted", async (req, res) => {
+app.post("/api/claim-achievement", async (req, res) => {
   try {
     const { userId, achievementId } = req.body;
 
-    if (!userId || !achievementId)
+    // check it's not already claimed
+    const { data: existing } = await supabase
+      .from("user_achievements")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("achievement_id", achievementId)
+      .single();
+
+    if (existing) {
+      return res.json({ success: true, alreadyClaimed: true });
+    }
+
+    const { error } = await supabase.from("user_achievements").insert({
+      user_id: userId,
+      achievement_id: achievementId,
+      minted: false,
+      claimed_at: new Date().toISOString(),
+      wallet_address: null,
+      tx_hash: null,
+    });
+    if (error) throw error;
+
+    return res.json({ success: true });
+  } catch (e) {
+    console.error("claim-achievement error:", e);
+    return res.status(500).json({ error: "Failed to claim achievement" });
+  }
+});
+
+app.post("/api/mark-minted", async (req, res) => {
+  try {
+    const { userId, achievementId, walletAddress, txHash } = req.body;
+
+    if (!userId || !achievementId || !walletAddress || !txHash)
       return res.status(400).json({ error: "Missing fields" });
 
     const { error: updateError } = await supabase
       .from("user_achievements")
-      .update({ minted: true })
+      .update({ minted: true, wallet_address: walletAddress, tx_hash: txHash })
       .eq("user_id", userId)
       .eq("achievement_id", achievementId);
 
@@ -321,15 +382,6 @@ app.post("/api/mint", async (req, res) => {
       throw new Error(`No contract address for chain ${chainId}`);
     }
 
-    console.log("=== MINT DEBUG ===");
-    console.log("chainId:", chainId);
-    console.log("rpcUrl:", rpcUrl);
-    console.log("contractAddress:", contractAddress);
-    console.log("to (address):", address);
-    console.log("metadataUri:", metadataUri);
-    console.log("achievementHash:", achievementHash);
-    console.log("minterWallet set:", !!process.env.MINTER_PRIVATE_KEY);
-
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const minterWallet = new ethers.Wallet(
       process.env.MINTER_PRIVATE_KEY!,
@@ -353,7 +405,7 @@ app.post("/api/mint", async (req, res) => {
       success: true,
       userId: userId,
       metadataUri: metadataUri,
-      achievementHash: hash.hash,
+      txHash: hash.hash,
     });
   } catch (e) {
     console.error("Mint error:", e);

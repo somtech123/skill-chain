@@ -6,6 +6,7 @@
   /* Text */
   --text-primary: #111827;
   --text-secondary: #6b7280;
+  --text-hover: #6366f1;
 
   /* Background */
   --bg-primary: #ffffff;
@@ -78,6 +79,7 @@
    --svg-bg: #ffffff;
 
    --nav-bg: #0f0f1a;
+   --text-hover:#6d28d9;
 }
 
 }
@@ -86,6 +88,7 @@
 @layer utilities {
   .text-primary { color: var(--text-primary); }
   .text-secondary { color: var(--text-secondary); }
+  
   .bg-base { background-color: var(--bg-primary); }
   .bg-surface { background-color: var(--bg-secondary); }
   .bg-sidebar { background-color: var(--bg-sidebar); }
@@ -93,6 +96,7 @@
   .text-accent { color: var(--accent); }
    .bg-nav { background-color: var(--nav-bg); }
  
+   .hover\:text-hover:hover { color: var(--text-hover); }
  
   /* Borders */
   .border-base { border-color: var(--nav-border); }
