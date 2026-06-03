@@ -39,10 +39,13 @@ export async function RepoList() {
 
   try {
     const res = await fetch(
-      // `${BACKEND_URL}/api/user-achievements/${userId}`,
-      // { cache: "no-store" }, // always fresh, no caching
       `${BACKEND_URL}/api/user-achievements/${userId}?totalRepos=${stats.totalRepos}&totalCommits=${stats.totalCommits}&score=${stats.score}`,
-      { cache: "no-store" },
+      {
+        headers: {
+          Authorization: `Bearer ${session?.user.accessToken}`,
+        },
+        cache: "no-store",
+      },
     );
     if (!res.ok) {
       console.error(
@@ -61,14 +64,15 @@ export async function RepoList() {
   let justClaimed = false;
 
   if (achievementsData.nextAchievement?.reached) {
-    console.log("claiming achievement:", achievementsData.nextAchievement.id);
-
     try {
       const claimRes = await fetch(`${BACKEND_URL}/api/claim-achievement`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+
+        headers: {
+          Authorization: `Bearer ${session?.user.accessToken}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          userId,
           achievementId: achievementsData.nextAchievement.id,
         }),
       });
@@ -78,11 +82,15 @@ export async function RepoList() {
 
         const refetch = await fetch(
           `${BACKEND_URL}/api/user-achievements/${userId}?totalRepos=${stats.totalRepos}&totalCommits=${stats.totalCommits}&score=${stats.score}`,
-          { cache: "no-store" },
+          {
+            headers: {
+              Authorization: `Bearer ${session?.user.accessToken}`,
+            },
+            cache: "no-store",
+          },
         );
         if (refetch.ok) {
           achievementsData = await refetch.json();
-          console.log("refetched pendingMints:", achievementsData.pendingMints);
         }
       }
     } catch (err) {

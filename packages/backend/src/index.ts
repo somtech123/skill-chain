@@ -1,9 +1,12 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
-import { Contract, ethers } from "ethers";
+import { ethers } from "ethers";
 import cors from "cors";
 import supabase from "./superbase";
 import { uploadNFTToIPFS } from "./pinata";
-import dotenv from "dotenv";
+
 import {
   CONTRACT_ADDRESSES,
   SoulboundNft,
@@ -11,31 +14,38 @@ import {
 } from "@my-app/shared";
 import { RPC_URLS } from "./config";
 import { requireAuth } from "./middleware/requireAuth";
-import crypto from "crypto";
-
-dotenv.config();
+import crypto from "node:crypto";
+import extractField from "./middleware/helper";
 
 const app = express();
-app.use(cors());
+
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 const signer = new ethers.Wallet(process.env.SIGNER_PRIVATE_KEY!);
-const NONCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const NONCE_TTL_MS = 5 * 60 * 1000;
 
-//----------Helper---------------------------------
-function extractField(message: string, field: string): string | null {
-  // Matches "Field:\n<value>" up to the next newline
-  const lines = message.split("\n");
-  const idx = lines.findIndex((l) => l.trim() === `${field}:`);
-  return idx !== -1 && lines[idx + 1] ? lines[idx + 1].trim() : null;
-}
+app.get("/api/debug", (req, res) => {
+  res.json({
+    origin: req.headers.origin,
+    cookies: req.headers.cookie,
+    secret_length: process.env.NEXTAUTH_SECRET?.length,
+  });
+});
 
-//-------GET /api/nonce----------------------------------
+// ─── GET /api/nonce ──────────────────────────────────────────────────────────
+
 app.get("/api/nonce", requireAuth, async (req, res) => {
   const userId = req.user!.id;
 
   const nonce = crypto.randomBytes(16).toString("hex");
   const expiresAt = new Date(Date.now() + NONCE_TTL_MS).toISOString();
+
   const { error } = await supabase
     .from("nonces")
     .insert({ user_id: userId, nonce, expires_at: expiresAt });
@@ -48,44 +58,35 @@ app.get("/api/nonce", requireAuth, async (req, res) => {
   return res.json({ nonce });
 });
 
-//--------POST /api/sign-proof---------------------
+// ─── POST /api/sign-proof ─────────────────────────────────────────────────────
 
 app.post("/api/sign-proof", requireAuth, async (req, res) => {
   try {
     const userId = req.user!.id;
 
     const { userAddress, achievementId, message, walletSignature } = req.body;
-    console.log("Request body:", { userAddress, achievementId, userId });
 
-    // validate inputs
+    // ── 1. Basic input validation ────────────────────────────────────────────
     if (!userAddress || !achievementId || !message || !walletSignature) {
       return res.status(400).json({ error: "Missing required fields" });
     }
-
     if (!ethers.isAddress(userAddress)) {
       return res.status(400).json({ error: "Invalid address" });
     }
 
-    // fetch achievement from supabase if exist
-    console.log(
-      "Querying for achievementId:",
-      JSON.stringify(achievementId),
-      "length:",
-      achievementId.length,
-    );
-
-    //Parse fields out of the signed message
+    // ── 2. Parse fields out of the signed message ────────────────────────────
     const messageUserId = extractField(
       message,
       "Claiming achievement for user",
     );
     const messageAddress = extractField(message, "Address");
     const nonce = extractField(message, "Nonce");
+
     if (!messageUserId || !messageAddress || !nonce) {
       return res.status(400).json({ error: "Malformed message" });
     }
 
-    //Message fields must match session + request
+    // ── 3. Message fields must match session + request ───────────────────────
     if (messageUserId !== userId) {
       return res.status(403).json({ error: "User ID mismatch" });
     }
@@ -93,7 +94,7 @@ app.post("/api/sign-proof", requireAuth, async (req, res) => {
       return res.status(403).json({ error: "Address mismatch in message" });
     }
 
-    //Verify wallet signature recovers to the claimed address
+    // ── 4. Verify wallet signature recovers to the claimed address ───────────
     let recoveredAddress: string;
     try {
       recoveredAddress = ethers.verifyMessage(message, walletSignature);
@@ -105,8 +106,7 @@ app.post("/api/sign-proof", requireAuth, async (req, res) => {
       return res.status(403).json({ error: "Wallet signature mismatch" });
     }
 
-    //Consume nonce atomically
-
+    // ── 5. Consume nonce atomically ──────────────────────────────────────────
     const { data: consumedNonce, error: nonceError } = await supabase
       .from("nonces")
       .delete()
@@ -120,30 +120,24 @@ app.post("/api/sign-proof", requireAuth, async (req, res) => {
       return res.status(403).json({ error: "Invalid or expired nonce" });
     }
 
-    //Fetch achievement
-    const { data: achievement, error } = await supabase
+    // ── 6. Fetch achievement ─────────────────────────────────────────────────
+    const { data: achievement, error: achievementError } = await supabase
       .from("achievements")
       .select("*")
       .eq("id", achievementId)
       .single();
 
-    if (error || !achievement) {
+    if (achievementError || !achievement) {
       return res.status(404).json({ error: "Achievement not found" });
     }
 
-    // check already claimed
+    // ── 7. Check already claimed ─────────────────────────────────────────────
     const { data: existing } = await supabase
       .from("user_achievements")
       .select("id")
       .eq("user_id", userId)
       .eq("achievement_id", achievementId)
       .single();
-
-    console.log("existing check:", {
-      existing,
-      userId,
-      achievementId,
-    });
 
     if (existing) {
       return res.status(200).json({
@@ -152,22 +146,16 @@ app.post("/api/sign-proof", requireAuth, async (req, res) => {
       });
     }
 
-    // build achievement hash
+    // ── 8. Build and sign the proof ──────────────────────────────────────────
     const achievementHash = ethers.solidityPackedKeccak256(
       ["string"],
       [achievementId],
     );
-
-    // build timestamp
     const timestamp = Math.floor(Date.now() / 1000);
-
-    // build message hash
     const messageHash = ethers.solidityPackedKeccak256(
       ["address", "bytes32", "uint256"],
       [userAddress, achievementHash, timestamp],
     );
-
-    //sign hash
     const signature = await signer.signMessage(ethers.getBytes(messageHash));
 
     return res.json({
@@ -183,16 +171,18 @@ app.post("/api/sign-proof", requireAuth, async (req, res) => {
   }
 });
 
-//-------------POST /api/confirm-proof -------------------
+// ─── POST /api/confirm-proof ──────────────────────────────────────────────────.
+
 app.post("/api/confirm-proof", requireAuth, async (req, res) => {
   try {
     const userId = req.user!.id;
 
     const { userAddress, achievementId, txHash } = req.body;
 
-    if (!userAddress || !achievementId || !userId || !txHash) {
+    if (!userAddress || !achievementId || !txHash) {
       return res.status(400).json({ error: "Missing fields" });
     }
+
     const { data: existing } = await supabase
       .from("user_achievements")
       .select("id")
@@ -204,13 +194,20 @@ app.post("/api/confirm-proof", requireAuth, async (req, res) => {
       return res.status(200).json({ success: true, alreadyRecorded: true });
     }
 
-    await supabase.from("user_achievements").insert({
+    const { error } = await supabase.from("user_achievements").insert({
       user_id: userId,
       wallet_address: userAddress,
       achievement_id: achievementId,
       tx_hash: txHash,
       minted: false,
     });
+
+    if (error) {
+      if (error.code === "23505") {
+        return res.status(200).json({ success: true, alreadyRecorded: true });
+      }
+      throw error;
+    }
 
     return res.json({ success: true });
   } catch (err) {
@@ -219,56 +216,66 @@ app.post("/api/confirm-proof", requireAuth, async (req, res) => {
   }
 });
 
-// get all achievements
+// ─── GET /api/achievements ────────────────────────────────────────────────────
+
 app.get("/api/achievements", async (req, res) => {
   const { data, error } = await supabase
     .from("achievements")
     .select("id, name, description");
 
-  if (error)
+  if (error) {
     return res.status(500).json({ error: "Failed to fetch achievements" });
+  }
 
-  res.json(data);
+  return res.json(data);
 });
 
-//get achievement name by hash
+// ─── GET /api/achievement-by-hash/:hash ──────────────────────────────────────
 
 app.get("/api/achievement-by-hash/:hash", async (req, res) => {
   try {
     const { hash } = req.params;
 
-    // fetch all achievements from db
     const { data: achievements, error } = await supabase
       .from("achievements")
       .select("id, name, description");
 
-    if (error)
+    if (error) {
       return res.status(500).json({ error: "Failed to fetch achievements" });
+    }
 
     const match = achievements?.find((e) => {
       const computed = ethers.solidityPackedKeccak256(["string"], [e.id]);
       return computed.toLowerCase() === hash.toLowerCase();
     });
 
-    if (!match) return res.status(400).json({ error: "Achievement not found" });
-    res.json({
+    if (!match) {
+      return res.status(404).json({ error: "Achievement not found" });
+    }
+
+    return res.json({
       id: match.id,
       name: match.name,
       description: match.description,
     });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
+// ─── GET /api/signer-address ──────────────────────────────────────────────────
+
 app.get("/api/signer-address", (req, res) => {
-  res.json({ address: signer.address });
+  return res.json({ address: signer.address });
 });
 
-app.get("/api/user-achievements/:userId", async (req, res) => {
+// ─── GET /api/user-achievements/:userId ──────────────────────────────────────
+
+app.get("/api/user-achievements/:userId", requireAuth, async (req, res) => {
   try {
-    const { userId } = req.params;
+    // ignore the URL param — always use the session user
+    const userId = req.user!.id;
     const { totalRepos, totalCommits, score } = req.query;
 
     const stats = {
@@ -287,28 +294,28 @@ app.get("/api/user-achievements/:userId", async (req, res) => {
       return true;
     }
 
-    //fetch all user achievement
     const { data: userAchievements, error: uaError } = await supabase
       .from("user_achievements")
       .select(
         `
-            id,
-            achievement_id,
-            minted,
-            claimed_at,
-            tx_hash,
-            wallet_address,
-            achievements (
+        id,
+        achievement_id,
+        minted,
+        claimed_at,
+        tx_hash,
+        wallet_address,
+        achievements (
           id,
           name,
           description,
           created_at
-            )
-          `,
+        )
+      `,
       )
       .eq("user_id", userId)
       .order("claimed_at", { ascending: true })
       .returns<UserAchievement[]>();
+
     if (uaError) {
       console.error("uaError:", uaError);
       return res
@@ -316,10 +323,9 @@ app.get("/api/user-achievements/:userId", async (req, res) => {
         .json({ error: "Failed to fetch user achievements" });
     }
 
-    // fetch all achievements with criteria
     const { data: allAchievements, error: achError } = await supabase
       .from("achievements")
-      .select("id, name, description, created_at,criteria")
+      .select("id, name, description, created_at, criteria")
       .order("created_at", { ascending: true });
 
     if (achError) {
@@ -351,10 +357,6 @@ app.get("/api/user-achievements/:userId", async (req, res) => {
       claimed_at: a.claimed_at,
     }));
 
-    // const nextAchievement =
-    //   allAchievements.find((a) => !earnedId.has(a.id)) ?? null;
-
-    // next unearned achievement with reached flag
     const nextAchievement =
       allAchievements
         .filter((a) => !earnedId.has(a.id))
@@ -364,27 +366,30 @@ app.get("/api/user-achievements/:userId", async (req, res) => {
         }))
         .at(0) ?? null;
 
-    const payload = {
+    return res.json({
       success: true,
       achievementStatus,
       pendingMints,
       minted,
       nextAchievement,
-    };
-
-    console.log("user achievements payload:", payload);
-    return res.json(payload);
+    });
   } catch (e) {
     console.error("Unexpected error in /user-achievements:", e);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
 
-app.post("/api/claim-achievement", async (req, res) => {
-  try {
-    const { userId, achievementId } = req.body;
+// ─── POST /api/claim-achievement ─────────────────────────────────────────────.
 
-    // check it's not already claimed
+app.post("/api/claim-achievement", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { achievementId } = req.body;
+
+    if (!achievementId) {
+      return res.status(400).json({ error: "Missing achievementId" });
+    }
+
     const { data: existing } = await supabase
       .from("user_achievements")
       .select("id")
@@ -404,6 +409,7 @@ app.post("/api/claim-achievement", async (req, res) => {
       wallet_address: null,
       tx_hash: null,
     });
+
     if (error) throw error;
 
     return res.json({ success: true });
@@ -413,23 +419,28 @@ app.post("/api/claim-achievement", async (req, res) => {
   }
 });
 
-app.post("/api/mark-minted", async (req, res) => {
+// ─── POST /api/mark-minted ────────────────────────────────────────────────────.
+
+app.post("/api/mark-minted", requireAuth, async (req, res) => {
   try {
-    const { userId, achievementId, walletAddress, txHash } = req.body;
+    const userId = req.user!.id;
+    const { achievementId, walletAddress, txHash } = req.body;
 
-    if (!userId || !achievementId || !walletAddress || !txHash)
+    if (!achievementId || !walletAddress || !txHash) {
       return res.status(400).json({ error: "Missing fields" });
+    }
 
-    const { error: updateError } = await supabase
+    const { error } = await supabase
       .from("user_achievements")
       .update({ minted: true, wallet_address: walletAddress, tx_hash: txHash })
       .eq("user_id", userId)
       .eq("achievement_id", achievementId);
 
-    if (updateError)
+    if (error) {
       return res
         .status(500)
         .json({ error: "Failed to mark achievement as minted" });
+    }
 
     return res.json({ success: true });
   } catch (e) {
@@ -438,13 +449,21 @@ app.post("/api/mark-minted", async (req, res) => {
   }
 });
 
-app.post("/api/mint", async (req, res) => {
+// ─── POST /api/mint ───────────────────────────────────────────────────────────.
+
+app.post("/api/mint", requireAuth, async (req, res) => {
   try {
-    const { stats, achievementId, userId, address } = req.body;
-    const chainId = Number(req.body.chainId); // force cast
+    const userId = req.user!.id;
+
+    const chainId = Number(req.body.chainId);
+    const { stats, achievementId, address } = req.body;
 
     if (!stats || !achievementId || !userId || !address || !chainId) {
       return res.status(400).json({ error: "Missing fields" });
+    }
+
+    if (!req.body.chainId || isNaN(chainId) || chainId === 0) {
+      return res.status(400).json({ error: "Invalid chainId" });
     }
 
     const metadataUri = await uploadNFTToIPFS(achievementId, stats);
@@ -456,8 +475,7 @@ app.post("/api/mint", async (req, res) => {
     const rpcUrl = RPC_URLS[chainId];
     if (!rpcUrl) throw new Error(`No RPC URL for chain ${chainId}`);
 
-    const contractAddress = CONTRACT_ADDRESSES[chainId!].soulboundNft;
-    console.log(contractAddress);
+    const contractAddress = CONTRACT_ADDRESSES[chainId].soulboundNft;
     if (!contractAddress) {
       throw new Error(`No contract address for chain ${chainId}`);
     }
@@ -474,29 +492,25 @@ app.post("/api/mint", async (req, res) => {
     );
 
     const tx = await contract.issue(address, metadataUri, achievementHash);
-    const hash = await tx.wait();
-    console.log("hash is", { hash });
-    console.log("status:", hash.status);
-    if (hash.status === 0) {
+    const receipt = await tx.wait();
+
+    if (receipt.status === 0) {
       throw new Error("Transaction mined but reverted");
     }
 
     return res.json({
       success: true,
-      userId: userId,
-      metadataUri: metadataUri,
-      txHash: hash.hash,
+      userId,
+      metadataUri,
+      txHash: receipt.hash,
     });
   } catch (e) {
     console.error("Mint error:", e);
     return res.status(500).json({ error: "Mint failed" });
   }
 });
-app._router.stack.forEach((r: any) => {
-  if (r.route?.path) {
-    console.log(r.route.path);
-    console.log(RPC_URLS[11155111]);
-  }
-});
+
+// ─── Start ────────────────────────────────────────────────────────────────────
+
 const PORT = process.env.PORT || 3002;
 app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));

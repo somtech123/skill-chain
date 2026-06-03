@@ -10,6 +10,7 @@ import {
   SoulboundNft,
 } from "@my-app/shared";
 import { useAccount, useWriteContract } from "wagmi";
+import { useSession } from "next-auth/react";
 
 interface Props {
   stats: DeveloperStats;
@@ -18,6 +19,8 @@ interface Props {
 }
 
 export function MintButton({ stats, pendingMints, userId }: Props) {
+  const { data: session, status: sessionStatus } = useSession();
+
   const [minting, setMinting] = useState(false);
   const [results, setResults] = useState<MintResult[]>([]);
   const [currentMinting, setCurrentMinting] = useState<string | null>(null);
@@ -26,24 +29,25 @@ export function MintButton({ stats, pendingMints, userId }: Props) {
   const chainId = chain?.id;
 
   async function handleMint() {
+    if (!session?.user.accessToken) return;
     if (pendingMints.length === 0) return;
-    console.log(pendingMints.length);
-    console.log("Fetching:", `${BACKEND_URL}/api/mint`);
+
     setMinting(true);
     setResults([]);
 
     for (const pending of pendingMints) {
-      console.log("minting pending:", pending);
       setCurrentMinting(pending.title ?? pending.achievementId);
 
       try {
         const res = await fetch(`${BACKEND_URL}/api/mint`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            Authorization: `Bearer ${session?.user.accessToken}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             stats,
             achievementId: pending.achievementId,
-            userId,
             address,
             chainId,
           }),
@@ -53,29 +57,13 @@ export function MintButton({ stats, pendingMints, userId }: Props) {
         if (!res.ok) throw new Error(data.error);
         const { metadataUri, txHash } = data;
 
-        // if (!address) return;
-
-        // let txHash: string;
-        // try {
-        //   txHash = await writeContractAsync({
-        //     address: contractAddress as `0x${string}`,
-        //     abi: SoulboundNft,
-        //     functionName: "issue",
-        //     args: [address, metadataUri, achievementHash],
-        //   });
-        // } catch (e) {
-        //   throw new Error(e instanceof Error ? e.message : String(e));
-        // }
-        // console.log("return", {
-        //   metadataUri,
-        //   achievementHash,
-        // });
-
         const markRes = await fetch(`${BACKEND_URL}/api/mark-minted`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            Authorization: `Bearer ${session?.user.accessToken}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
-            userId: data.userId,
             achievementId: pending.achievementId,
             walletAddress: address,
             txHash: txHash,

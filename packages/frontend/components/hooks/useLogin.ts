@@ -28,13 +28,6 @@ export function useLogin() {
   }, [address]);
 
   useEffect(() => {
-    console.log("1. effect fired", {
-      status,
-      sessionId: session?.user?.id,
-      address,
-      githubConnected,
-      hasRun: hasRun.current,
-    });
     if (sessionStatus === "loading") return;
 
     if (!session?.user?.id || !address || !githubConnected) return;
@@ -50,8 +43,11 @@ export function useLogin() {
 
         const nonceRes = await fetch(`${BACKEND_URL}/api/nonce`, {
           method: "GET",
-          credentials: "include", // sends session cookie
+          headers: {
+            Authorization: `Bearer ${session?.user.accessToken}`,
+          },
         });
+
         if (!nonceRes.ok) {
           throw new Error("Failed to fetch nonce");
         }
@@ -81,7 +77,10 @@ export function useLogin() {
 
         const res = await fetch(`${BACKEND_URL}/api/sign-proof`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            Authorization: `Bearer ${session?.user.accessToken}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             userAddress: address,
             achievementId: "first_login",
@@ -97,7 +96,6 @@ export function useLogin() {
         }
 
         const data: SignProofResponse = await res.json();
-        console.log(data);
 
         //already claimed
         if (data.alreadyClaimed) {
@@ -134,11 +132,14 @@ export function useLogin() {
         // step 5 — confirm with backend after tx succeeds
         const confirmRes = await fetch(`${BACKEND_URL}/api/confirm-proof`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            Authorization: `Bearer ${session?.user.accessToken}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             userAddress: address,
             achievementId: "first_login",
-            userId: session!.user.id,
+            // userId: session!.user.id,
             txHash,
           }),
         });

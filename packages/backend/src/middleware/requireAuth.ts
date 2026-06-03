@@ -15,33 +15,49 @@ declare global {
   }
 }
 
+const cache = new Map();
+
 export async function requireAuth(
   req: Request,
   res: Response,
   next: NextFunction,
 ) {
-  // next-auth/jwt can decode the cookie from an Express request
-  // as long as NEXTAUTH_SECRET matches your Next.js app
+  const token = req.headers.authorization?.slice(7);
+  if (!token) return res.status(401).json({ error: "Missing token" });
+
+  // check cache first (TTL: 5 minutes)
+  if (cache.has(token)) {
+    const { user, exp } = cache.get(token);
+    if (Date.now() < exp) {
+      req.user = user;
+      return next();
+    }
+    cache.delete(token);
+  }
   try {
-    const token = await getToken({
-      req: req as any,
-      secret: process.env.NEXTAUTH_SECRET!,
+    const ghRes = await fetch("https://api.github.com/user", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "User-Agent": "skill chain",
+      },
     });
 
-    if (!token || !token.sub) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    if (!token.githubConnected) {
-      return res.status(403).json({ error: "GitHub not connected" });
-    }
-    req.user = {
-      id: token.sub,
-      githubConnected: !!token.githubConnected,
+    if (!ghRes.ok) return res.status(401).json({ error: "Invalid token" });
+
+    const ghUser = await ghRes.json();
+
+    const user = {
+      id: String(ghUser.id),
+      login: ghUser.login,
+      email: ghUser.email,
+      githubConnected: true,
     };
 
+    cache.set(token, { user, exp: Date.now() + 5 * 60 * 1000 }); // 5 min TTL
+    req.user = user;
     next();
-  } catch (e) {
-    console.error("Auth middleware error:", e);
-    return res.status(401).json({ error: "Unauthorized" });
+  } catch (err) {
+    console.error("GitHub auth error:", err);
+    return res.status(500).json({ error: "Auth check failed" });
   }
 }

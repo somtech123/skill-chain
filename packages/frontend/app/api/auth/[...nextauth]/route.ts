@@ -4,6 +4,7 @@ import GithubProvider from "next-auth/providers/github";
 
 export const authOptions: NextAuthOptions = {
   // ← plain config object, NOT NextAuth(...)
+  debug: true,
   providers: [
     GithubProvider({
       clientId: process.env.GITHUB_CLIENT_ID!,
@@ -14,6 +15,9 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "jwt",
+  },
   callbacks: {
     async jwt({ token, account }) {
       if (account) {
@@ -26,6 +30,7 @@ export const authOptions: NextAuthOptions = {
       session.user.id = token.sub!;
       session.user.githubConnected = !!token.githubConnected;
       session.user.accessToken = token.accessToken;
+
       return session;
     },
   },

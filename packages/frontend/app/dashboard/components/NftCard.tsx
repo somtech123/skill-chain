@@ -1,5 +1,5 @@
 "use client";
-import { UserNft } from "@my-app/shared";
+import { IPFS_GATEWAYS, UserNft } from "@my-app/shared";
 import { useState } from "react";
 import { useNftMetadata } from "../hooks/useNftMetadata";
 import { NftDetailModal } from "./NftDetailModal";
@@ -50,6 +50,23 @@ export default function NFTCard({
             src={metadata?.image}
             alt={achievement}
             className="w-full h-36 object-cover"
+            onError={(e) => {
+              const img = e.currentTarget;
+              const currentsrc = img.src;
+              const currentGetWayIndex = IPFS_GATEWAYS.findIndex((g) =>
+                currentsrc.includes(g),
+              );
+
+              const nextIndex = currentGetWayIndex + 1;
+              if (nextIndex < IPFS_GATEWAYS.length && metadata?.image) {
+                img.src = metadata.image.startsWith("ipfs://")
+                  ? metadata.image.replace("ipfs://", IPFS_GATEWAYS[nextIndex])
+                  : metadata.image.replace(
+                      IPFS_GATEWAYS[currentGetWayIndex],
+                      IPFS_GATEWAYS[nextIndex],
+                    );
+              }
+            }}
           />
         ) : (
           <div className="w-full h-36 bg-indigo-50 flex items-center justify-center">

@@ -20,6 +20,7 @@ export type UserData = {
   lastSeenAt: string;
   proofs: Proof[];
 };
+const PAGE_SIZE = 1000;
 
 export function useUserProofs(address?: string) {
   const [data, setData] = useState<UserData | null>(null);

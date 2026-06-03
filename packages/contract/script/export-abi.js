@@ -28,5 +28,3 @@ fs.writeFileSync(
   `${outPutDir}/SoulboundNft.ts`,
   `export const SoulboundNft = ${JSON.stringify(nftArtifact.abi, null, 2)} as const`,
 );
-
-console.log("ABIs exported to shared");

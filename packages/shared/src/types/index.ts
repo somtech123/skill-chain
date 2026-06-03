@@ -160,3 +160,10 @@ export interface NftMetadata {
   image: string;
   attributes: NftAttribute[];
 }
+
+export const IPFS_GATEWAYS = [
+  "https://ipfs.io/ipfs/",
+  "https://dweb.link/ipfs/",
+  "https://gateway.pinata.cloud/ipfs/",
+  "https://4everland.io/ipfs/",
+];

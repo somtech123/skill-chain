@@ -109,11 +109,9 @@ export async function uploadNFTToIPFS(
   const filename = path.basename(imgPath);
 
   const imageCid = await uploadImage(imgPath, filename, groupId);
-  console.log(`Image uploaded: ${imageCid}`);
 
   const metadata = buildMetadata(achievementId, imageCid, stats);
   const metadataUri = await uploadMetadata(metadata, achievementId, groupId);
-  console.log(`Metadata uploaded: ${metadataUri}`);
 
   return metadataUri;
 }
