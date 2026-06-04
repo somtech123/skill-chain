@@ -7,7 +7,7 @@ const config: Config = getDefaultConfig({
   appName: "Skill Chain",
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
   chains: [sepolia],
-  ssr: false,
+  ssr: true,
 });
 
 export default config;
