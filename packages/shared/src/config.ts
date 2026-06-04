@@ -4,7 +4,7 @@ export const config = {
     FRONTEND_URL: "http://localhost:3000",
   },
   prod: {
-    BACKEND_URL: "my-appbackend-production.up.railway.app",
+    BACKEND_URL: "https://my-appbackend-production.up.railway.app",
     FRONTEND_URL: "",
   },
 };
@@ -12,6 +12,7 @@ export const config = {
 const isProd = process.env.NODE_ENV === "production";
 
 export const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ??
   process.env.BACKEND_URL ??
   (isProd ? config.prod.BACKEND_URL : config.dev.BACKEND_URL);
 
