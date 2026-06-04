@@ -6,7 +6,9 @@
       "env":["NEXTAUTH_URL",
         "NEXTAUTH_SECRET",
         "NEXT_PUBLIC_BACKEND_URL",
-        "NEXT_PUBLIC_GRAPH_URL","NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID"],
+        "NEXT_PUBLIC_GRAPH_URL", 
+        "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID"
+      ],
       "outputs": ["dist/**", ".next/**", "artifacts/**", "out/**"]
     },
     "dev": {
